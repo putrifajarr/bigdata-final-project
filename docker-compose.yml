@@ -16,7 +16,7 @@ services:
   # Kafka (KRaft mode — tanpa Zookeeper)
   # ---------------------------------------------------------------------------
   kafka:
-    image: bitnami/kafka:latest
+    image: bitnamilegacy/kafka:3.7
     container_name: kafka
     networks:
       - pipeline_net
