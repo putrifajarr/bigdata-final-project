@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    uid: clickhouse_flight_delay
+    access: proxy
+    isDefault: true
+    jsonData:
+      host: clickhouse
+      port: 8123
+      protocol: http
+      username: default
+      defaultDatabase: flight_delay
+      dialectName: clickhouse
+    secureJsonData:
+      password: ""
+    editable: false

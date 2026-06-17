@@ -1,0 +1,34 @@
+# .gitignore untuk final-project
+
+# Data mentah dan hasil ekstrak tidak di-commit ke repo (ukuran bisa sangat besar)
+data/raw/
+data/rejected/
+!data/raw/ontime/.gitkeep
+!data/rejected/.gitkeep
+
+# Sample data boleh di-commit jika kecil, tapi opsional
+data/sample/
+!data/sample/.gitkeep
+
+# Spark checkpoints tidak perlu di-repo
+spark/checkpoints/
+!spark/checkpoints/.gitkeep
+
+# Environment variables lokal tidak boleh di-commit
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.mypy_cache/
+.ruff_cache/
+
+# Manifest CSV berisi path lokal, lebih baik di-generate ulang
+data/manifest.csv
+
+# VS Code settings
+.vscode/
+
+# MacOS
+.DS_Store

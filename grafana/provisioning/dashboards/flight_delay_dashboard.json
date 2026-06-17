@@ -1,0 +1,276 @@
+{
+  "title": "OnTime Flight Delay Pipeline",
+  "uid": "flight-delay-main",
+  "version": 1,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-6M", "to": "now" },
+  "tags": ["flight-delay", "pipeline"],
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "Ingestion Health",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "title": "Total Raw Rows",
+      "type": "stat",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "rawSql": "SELECT count() AS total FROM flight_delay.ontime_raw",
+          "format": "table"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "unit": "locale", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } } }
+    },
+    {
+      "id": 3,
+      "title": "Latest Ingest Timestamp",
+      "type": "stat",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "rawSql": "SELECT max(ingest_ts) AS latest_ingest FROM flight_delay.ontime_raw",
+          "format": "table"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "dateTimeAsLocal" } }
+    },
+    {
+      "id": 4,
+      "title": "Pipeline Run Status",
+      "type": "table",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "rawSql": "SELECT run_id, job_name, status, message, created_at FROM flight_delay.pipeline_run_log ORDER BY created_at DESC LIMIT 20",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 10,
+      "title": "Data Quality",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false
+    },
+    {
+      "id": 11,
+      "title": "Valid Row Ratio",
+      "type": "gauge",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "rawSql": "SELECT metric_value FROM flight_delay.pipeline_quality_metrics WHERE metric_name = 'valid_row_ratio' ORDER BY created_at DESC LIMIT 1",
+          "format": "table"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "minVizWidth": 75 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0.90 }, { "color": "green", "value": 0.95 }] } } }
+    },
+    {
+      "id": 12,
+      "title": "Rejected Row Count",
+      "type": "stat",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 6 },
+      "targets": [
+        {
+          "rawSql": "SELECT metric_value FROM flight_delay.pipeline_quality_metrics WHERE metric_name = 'rejected_row_count' ORDER BY created_at DESC LIMIT 1",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1000 }, { "color": "red", "value": 50000 }] } } }
+    },
+    {
+      "id": 13,
+      "title": "Null Rate per Kolom Kritis",
+      "type": "barchart",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        {
+          "rawSql": "SELECT column_name, null_ratio FROM flight_delay.eda_column_profile WHERE run_id = (SELECT run_id FROM flight_delay.pipeline_run_log ORDER BY created_at DESC LIMIT 1) ORDER BY null_ratio DESC LIMIT 20",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 20,
+      "title": "Delay Overview",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 11 },
+      "collapsed": false
+    },
+    {
+      "id": 21,
+      "title": "Monthly Average Arrival Delay (minutes)",
+      "type": "timeseries",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "rawSql": "SELECT toDate(concat(toString(year), '-', leftPad(toString(month), 2, '0'), '-01')) AS time, avg_arr_delay FROM flight_delay.agg_monthly_delay ORDER BY time",
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "m", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "id": 22,
+      "title": "Monthly Cancellation Rate",
+      "type": "timeseries",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "rawSql": "SELECT toDate(concat(toString(year), '-', leftPad(toString(month), 2, '0'), '-01')) AS time, cancellation_rate FROM flight_delay.agg_monthly_delay ORDER BY time",
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit" } }
+    },
+
+    {
+      "id": 30,
+      "title": "Carrier Performance",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+      "collapsed": false
+    },
+    {
+      "id": 31,
+      "title": "Top 15 Carrier by Avg Arrival Delay",
+      "type": "barchart",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "rawSql": "SELECT airline_code, avg(avg_arr_delay) AS avg_arr_delay FROM flight_delay.agg_carrier_performance GROUP BY airline_code ORDER BY avg_arr_delay DESC LIMIT 15",
+          "format": "table"
+        }
+      ],
+      "options": { "orientation": "horizontal" }
+    },
+    {
+      "id": 32,
+      "title": "Carrier Cancellation Rate",
+      "type": "barchart",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "rawSql": "SELECT airline_code, avg(cancellation_rate) AS cancellation_rate FROM flight_delay.agg_carrier_performance GROUP BY airline_code ORDER BY cancellation_rate DESC LIMIT 15",
+          "format": "table"
+        }
+      ],
+      "options": { "orientation": "horizontal" },
+      "fieldConfig": { "defaults": { "unit": "percentunit" } }
+    },
+
+    {
+      "id": 40,
+      "title": "Airport Performance",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+      "collapsed": false
+    },
+    {
+      "id": 41,
+      "title": "Top Origin Airports by Delay Rate",
+      "type": "barchart",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 29 },
+      "targets": [
+        {
+          "rawSql": "SELECT airport_code, avg(delay_rate) AS delay_rate FROM flight_delay.agg_airport_performance WHERE airport_role = 'origin' GROUP BY airport_code ORDER BY delay_rate DESC LIMIT 15",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "title": "Top Destination Airports by Delay Rate",
+      "type": "barchart",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 29 },
+      "targets": [
+        {
+          "rawSql": "SELECT airport_code, avg(delay_rate) AS delay_rate FROM flight_delay.agg_airport_performance WHERE airport_role = 'destination' GROUP BY airport_code ORDER BY delay_rate DESC LIMIT 15",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 50,
+      "title": "Route Analysis",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 37 },
+      "collapsed": false
+    },
+    {
+      "id": 51,
+      "title": "Top 20 Routes by Avg Arrival Delay",
+      "type": "table",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 38 },
+      "targets": [
+        {
+          "rawSql": "SELECT route, origin, dest, sum(total_flights) AS total_flights, avg(avg_arr_delay) AS avg_arr_delay, avg(cancellation_rate) AS cancellation_rate FROM flight_delay.agg_route_performance GROUP BY route, origin, dest ORDER BY avg_arr_delay DESC LIMIT 20",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 60,
+      "title": "Delay Causes",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 46 },
+      "collapsed": false
+    },
+    {
+      "id": 61,
+      "title": "Delay Reason Distribution (All Carriers)",
+      "type": "piechart",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 47 },
+      "targets": [
+        {
+          "rawSql": "SELECT 'Carrier' AS reason, sum(total_carrier_delay_min) AS minutes FROM flight_delay.agg_delay_reason UNION ALL SELECT 'Weather', sum(total_weather_delay_min) FROM flight_delay.agg_delay_reason UNION ALL SELECT 'NAS', sum(total_nas_delay_min) FROM flight_delay.agg_delay_reason UNION ALL SELECT 'Security', sum(total_security_delay_min) FROM flight_delay.agg_delay_reason UNION ALL SELECT 'Late Aircraft', sum(total_late_aircraft_delay_min) FROM flight_delay.agg_delay_reason",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 62,
+      "title": "Weather Delay Trend by Month",
+      "type": "timeseries",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_flight_delay" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 47 },
+      "targets": [
+        {
+          "rawSql": "SELECT toDate(concat(toString(year), '-', leftPad(toString(month), 2, '0'), '-01')) AS time, sum(total_weather_delay_min) AS weather_delay_minutes FROM flight_delay.agg_delay_reason GROUP BY year, month ORDER BY time",
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "m" } }
+    }
+
+  ]
+}
