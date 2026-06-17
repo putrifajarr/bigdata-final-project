@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Semua service berjalan dalam satu network agar bisa saling resolve hostname
 networks:
   pipeline_net:
@@ -16,7 +14,7 @@ services:
   # Kafka (KRaft mode — tanpa Zookeeper)
   # ---------------------------------------------------------------------------
   kafka:
-    image: bitnamilegacy/kafka:3.7
+    image: bitnamilegacy/kafka:3.3.2
     container_name: kafka
     networks:
       - pipeline_net
