@@ -1,7 +1,7 @@
 import clickhouse_connect
 
 client = clickhouse_connect.get_client(
-    host="47.129.195.124",
+    host="13.215.79.3",
     port=8123,
     username="default",
     password="rahasia123",
