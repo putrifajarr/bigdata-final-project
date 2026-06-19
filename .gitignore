@@ -83,7 +83,7 @@ build/
 # Virtual environment (jika ada)
 venv/
 .venv/
-env/
+.env
 
 # Jupyter Notebook checkpoint
 .ipynb_checkpoints/
@@ -98,3 +98,5 @@ env/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+DE_SETUP.md

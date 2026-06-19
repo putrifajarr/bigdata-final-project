@@ -1,7 +1,7 @@
 # Team Handoff — OnTime Flight Delay Pipeline
 
 Dokumen ini ditujukan untuk anggota tim yang menggunakan output dari pipeline
-yang sudah dibangun oleh Data Engineer. Pastikan pipeline sudah dalam status
+yang sudah dibangun. Pastikan pipeline sudah dalam status
 `QUALITY_PASSED` sebelum melanjutkan ke tahap modeling atau dashboard.
 
 ---
