@@ -16,9 +16,6 @@ Output:
 Cara submit:
     docker exec spark-master spark-submit \
         --master spark://spark-master:7077 \
-        --packages com.clickhouse.spark:clickhouse-spark-runtime-3.5_2.12:0.8.0,\
-com.clickhouse:clickhouse-http-client:0.6.3,\
-org.apache.httpcomponents.client5:httpclient5:5.3 \
         /opt/spark-apps/aggregate_ontime.py
 """
 
@@ -41,6 +38,8 @@ CH_PROPS = {
     "driver": "com.clickhouse.jdbc.ClickHouseDriver",
     "user": CLICKHOUSE_USER,
     "password": CLICKHOUSE_PASSWORD,
+    "socket_timeout": "300000",
+    "socketTimeout": "300000"
 }
 
 RUN_ID = os.getenv("PIPELINE_RUN_ID", str(uuid.uuid4()))
@@ -87,7 +86,7 @@ def log_status(spark: SparkSession, status: str, message: str = "") -> None:
         StructField("message", StringType()),
         StructField("created_at", StringType()),
     ])
-    row = [(RUN_ID, status, "aggregate_ontime", message, datetime.now(timezone.utc).isoformat())]
+    row = [(RUN_ID, status, "aggregate_ontime", message, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))]
     write_to_ch(spark.createDataFrame(row, schema), "pipeline_run_log")
 
 
@@ -95,7 +94,7 @@ def add_run_meta(df: DataFrame) -> DataFrame:
     return (
         df
         .withColumn("pipeline_run_id", F.lit(RUN_ID))
-        .withColumn("updated_at", F.lit(datetime.now(timezone.utc).isoformat()).cast("timestamp"))
+        .withColumn("updated_at", F.lit(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")).cast("timestamp"))
     )
 
 
@@ -257,10 +256,7 @@ def main() -> None:
     log_status(spark, "STARTED", "Aggregation dimulai")
 
     df_curated = read_table(spark, "ontime_curated")
-    df_curated.cache()
-
     df_post = read_table(spark, "ontime_post_event_analysis")
-    df_post.cache()
 
     agg_steps = [
         ("agg_monthly_delay", lambda: agg_monthly_delay(df_curated)),
@@ -283,8 +279,7 @@ def main() -> None:
             log_status(spark, "FAILED", f"{table_name} gagal: {exc}")
             raise
 
-    df_curated.unpersist()
-    df_post.unpersist()
+
 
     log_status(spark, "AGGREGATION_COMPLETED",
                f"Selesai: {len(completed)} aggregate tables tersedia")

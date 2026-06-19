@@ -1,4 +1,4 @@
-requests==2.31.0
-kafka-python==2.0.2
-pandas==2.2.2
-tqdm==4.66.4
+requests
+kafka-python
+pandas
+tqdm

@@ -13,6 +13,4 @@ datasources:
       username: default
       defaultDatabase: flight_delay
       dialectName: clickhouse
-    secureJsonData:
-      password: ""
-    editable: false
+    editable: true

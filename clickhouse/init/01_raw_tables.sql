@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS flight_delay.ontime_raw
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(FlightDate)
 ORDER BY (FlightDate, IATA_CODE_Reporting_Airline, Origin, Dest)
-SETTINGS index_granularity = 8192;
+SETTINGS index_granularity = 8192, allow_nullable_key = 1;
 
 
 -- Materialized view: jembatan otomatis dari Kafka Engine ke raw landing table.

@@ -89,7 +89,9 @@ services:
   # Spark — preprocessing, EDA, aggregation
   # ---------------------------------------------------------------------------
   spark:
-    image: bitnamilegacy/spark:3.5
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
     container_name: spark-master
     networks:
       - pipeline_net
@@ -125,6 +127,32 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
+
+  spark-worker:
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    container_name: spark-worker
+    networks:
+      - pipeline_net
+    environment:
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_WORKER_MEMORY: 4G
+      SPARK_WORKER_CORES: 2
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
+      CLICKHOUSE_HOST: ${CLICKHOUSE_HOST:-clickhouse}
+      CLICKHOUSE_HTTP_PORT: ${CLICKHOUSE_HTTP_PORT:-8123}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-flight_delay}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+    volumes:
+      - ./spark/jobs:/opt/spark-apps
+      - ./spark/conf:/opt/bitnami/spark/conf/custom
+      - ./data:/opt/data
+    depends_on:
+      - spark
 
   # ---------------------------------------------------------------------------
   # Grafana — visualisasi dashboard

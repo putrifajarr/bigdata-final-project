@@ -1,34 +1,100 @@
-# .gitignore untuk final-project
+# =============================================================================
+# .gitignore — Flight Delay Big Data Pipeline
+# =============================================================================
+# Yang di-push ke GitHub: kode, konfigurasi, schema, dokumentasi
+# Yang TIDAK di-push: data besar, secret, file cache, file lokal sementara
+# =============================================================================
 
-# Data mentah dan hasil ekstrak tidak di-commit ke repo (ukuran bisa sangat besar)
+# -----------------------------------------------------------------------------
+# [1] SECRET & KONFIGURASI LOKAL
+# -----------------------------------------------------------------------------
+.env                     # Berisi password & credential — JANGAN pernah di-push!
+
+# -----------------------------------------------------------------------------
+# [2] DATA MENTAH BTS (ZIP + CSV) — Sangat Besar, sudah ada di AWS
+# -----------------------------------------------------------------------------
+# Setiap pasang file ZIP+CSV per bulan berukuran ~170 MB → 5 tahun = ~10 GB
 data/raw/
 data/rejected/
+data/manifest.csv        # Berisi path lokal, tidak relevan di repo orang lain
+
+# Pertahankan struktur folder kosong agar git tahu foldernya ada
 !data/raw/ontime/.gitkeep
 !data/rejected/.gitkeep
-
-# Sample data boleh di-commit jika kecil, tapi opsional
-data/sample/
 !data/sample/.gitkeep
 
-# Spark checkpoints tidak perlu di-repo
+# -----------------------------------------------------------------------------
+# [3] FILE EXPORT & ARTIFACT DATA — Sudah ada di AWS ClickHouse
+# -----------------------------------------------------------------------------
+# File-file ini adalah hasil export dari ClickHouse untuk keperluan upload AWS
+# Sudah tidak dibutuhkan di repo karena data sudah ada di server
+*.parquet
+*.pkl
+*.joblib
+
+# Export CSV dari ClickHouse (di root folder — file besar)
+/agg_airport_performance.csv
+/agg_carrier_performance.csv
+/agg_delay_reason.csv
+/agg_hourly_delay.csv
+/agg_monthly_delay.csv
+/agg_route_performance.csv
+/ontime_features.csv
+
+# Backup parquet mentah (1.2 GB — tidak perlu di repo)
+/backup_raw_33juta.parquet
+/ontime_curated.parquet
+
+# Hasil model ML dari Anggota 2 & 3 (simpan di Google Drive atau share manual)
+model_*.pkl
+encoder.pkl
+feature_list.txt
+metrik_model.json
+
+# Grafik output EDA
+*.png
+confusion_matrix.png
+roc_curve.png
+feature_importance.png
+
+# -----------------------------------------------------------------------------
+# [4] SPARK STATE & CHECKPOINT
+# -----------------------------------------------------------------------------
 spark/checkpoints/
 !spark/checkpoints/.gitkeep
+spark/jobs/__pycache__/
 
-# Environment variables lokal tidak boleh di-commit
-.env
-
-# Python cache
+# -----------------------------------------------------------------------------
+# [5] PYTHON CACHE & BUILD ARTIFACT
+# -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
 .mypy_cache/
 .ruff_cache/
+.pytest_cache/
+*.log
 
-# Manifest CSV berisi path lokal, lebih baik di-generate ulang
-data/manifest.csv
+# Virtual environment (jika ada)
+venv/
+.venv/
+env/
 
-# VS Code settings
+# Jupyter Notebook checkpoint
+.ipynb_checkpoints/
+
+# -----------------------------------------------------------------------------
+# [6] EDITOR & OS
+# -----------------------------------------------------------------------------
 .vscode/
-
-# MacOS
+.idea/
+*.swp
+*.swo
 .DS_Store
+Thumbs.db
+desktop.ini

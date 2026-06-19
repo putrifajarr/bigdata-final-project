@@ -82,8 +82,11 @@ pip install -r producer\requirements.txt
 ## Step 4: Jalankan Docker Compose
 
 ```powershell
-# Pull semua image dulu (lakukan sekali, butuh internet)
+# Pull base image (lakukan sekali, butuh internet)
 docker compose pull
+
+# Build custom Spark image dengan dependensi
+docker compose build
 
 # Jalankan semua service
 docker compose up -d
@@ -176,25 +179,21 @@ $RUN_ID = [System.Guid]::NewGuid().ToString()
 # Submit EDA job
 docker exec -e PIPELINE_RUN_ID=$RUN_ID spark-master spark-submit `
   --master spark://spark-master:7077 `
-  --packages "com.clickhouse.spark:clickhouse-spark-runtime-3.5_2.12:0.8.0,com.clickhouse:clickhouse-http-client:0.6.3,org.apache.httpcomponents.client5:httpclient5:5.3" `
   /opt/spark-apps/eda_profile.py
 
 # Submit preprocessing job
 docker exec -e PIPELINE_RUN_ID=$RUN_ID spark-master spark-submit `
   --master spark://spark-master:7077 `
-  --packages "com.clickhouse.spark:clickhouse-spark-runtime-3.5_2.12:0.8.0,com.clickhouse:clickhouse-http-client:0.6.3,org.apache.httpcomponents.client5:httpclient5:5.3" `
   /opt/spark-apps/preprocess_ontime.py
 
 # Submit quality gate job
 docker exec -e PIPELINE_RUN_ID=$RUN_ID spark-master spark-submit `
   --master spark://spark-master:7077 `
-  --packages "com.clickhouse.spark:clickhouse-spark-runtime-3.5_2.12:0.8.0,com.clickhouse:clickhouse-http-client:0.6.3,org.apache.httpcomponents.client5:httpclient5:5.3" `
   /opt/spark-apps/validate_quality.py
 
 # Submit aggregation job (hanya jika quality PASSED)
 docker exec -e PIPELINE_RUN_ID=$RUN_ID spark-master spark-submit `
   --master spark://spark-master:7077 `
-  --packages "com.clickhouse.spark:clickhouse-spark-runtime-3.5_2.12:0.8.0,com.clickhouse:clickhouse-http-client:0.6.3,org.apache.httpcomponents.client5:httpclient5:5.3" `
   /opt/spark-apps/aggregate_ontime.py
 ```
 
@@ -226,50 +225,6 @@ python producer\stream_ontime.py
 
 ---
 
-## Troubleshooting Umum
-
-### Kafka tidak bisa diakses dari producer script
-
-Producer script dari host menggunakan port `9094` (EXTERNAL listener), bukan `9092`.
-Pastikan `KAFKA_BOOTSTRAP_SERVERS` di `.env` menggunakan `localhost:9094` saat dijalankan dari host.
-
-### ClickHouse schema tidak terbuat otomatis
-
-```powershell
-# Jalankan ulang init script secara manual
-docker exec clickhouse clickhouse-client --multiquery < clickhouse/init/00_create_database.sql
-docker exec clickhouse clickhouse-client --multiquery < clickhouse/init/01_raw_tables.sql
-```
-
-### Spark job gagal karena dependency tidak ditemukan
-
-Pastikan container memiliki akses internet saat pertama kali `--packages` dijalankan.
-Spark akan mendownload JAR otomatis ke cache container.
-
-### Grafana tidak menampilkan data
-
-1. Cek datasource di Grafana: Settings → Data Sources → ClickHouse → Test
-2. Pastikan aggregate tables sudah terisi dengan menjalankan `aggregate_ontime.py`
-
----
-
-## Yang Perlu Dibagikan ke Tim Setelah Anda Selesai
-
-Setelah pipeline lokal berjalan dan quality gate PASSED, bagikan hal-hal berikut ke tim:
-
-### Ke Tim Data Scientist
-
-1. Konfirmasi bahwa `flight_delay.ontime_features` sudah terisi dan quality gate PASSED.
-2. Kirim file `docs/team_handoff.md` sebagai panduan.
-3. Bagikan koneksi ClickHouse: `host=localhost, port=8123, database=flight_delay`.
-4. Informasikan `run_id` terakhir yang PASSED agar mereka bisa filter data dari run yang benar.
-
-### Ke Tim Dashboard/BI
-
-1. Pastikan Grafana bisa diakses di http://localhost:3000 (atau IP mesin yang menjalankan Docker).
-2. Bagikan kredensial Grafana dari file `.env`.
-3. Konfirmasi semua aggregate table sudah terisi (`agg_monthly_delay`, `agg_carrier_performance`, dll.).
-4. Kirim file `docs/team_handoff.md`.
 
 ### Ke Tim DevOps/Cloud (Jika Ada)
 

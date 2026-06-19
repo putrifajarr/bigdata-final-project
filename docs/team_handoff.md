@@ -96,7 +96,21 @@ Dokumentasikan metrik model yang menggunakan versi ini vs yang tidak.
 ```python
 import clickhouse_connect
 
-client = clickhouse_connect.get_client(host="localhost", port=8123)
+# ===== KONEKSI KE AWS EC2 (Buka komentar ini untuk tim Anda) =====
+# client = clickhouse_connect.get_client(
+#     host="47.129.195.124", 
+#     port=8123, 
+#     database="flight_delay",
+#     username="default",
+#     password="rahasia123"
+# )
+
+# ===== KONEKSI LOKAL (Gunakan ini jika running di laptop yang ada Docker-nya) =====
+client = clickhouse_connect.get_client(
+    host="localhost", 
+    port=8123,
+    database="flight_delay"
+)
 df = client.query_df("""
     SELECT *
     FROM flight_delay.ontime_features

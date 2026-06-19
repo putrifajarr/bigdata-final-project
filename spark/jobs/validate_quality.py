@@ -11,9 +11,6 @@ Output:
 Cara submit:
     docker exec spark-master spark-submit \
         --master spark://spark-master:7077 \
-        --packages com.clickhouse.spark:clickhouse-spark-runtime-3.5_2.12:0.8.0,\
-com.clickhouse:clickhouse-http-client:0.6.3,\
-org.apache.httpcomponents.client5:httpclient5:5.3 \
         /opt/spark-apps/validate_quality.py
 """
 
@@ -94,7 +91,7 @@ def log_status(spark: SparkSession, status: str, message: str = "") -> None:
         StructField("message", StringType()),
         StructField("created_at", StringType()),
     ])
-    row = [(RUN_ID, status, "validate_quality", message, datetime.now(timezone.utc).isoformat())]
+    row = [(RUN_ID, status, "validate_quality", message, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))]
     write_to_ch(spark.createDataFrame(row, schema), "pipeline_run_log")
 
 
@@ -107,7 +104,7 @@ def write_gate_result(spark: SparkSession, gate_name: str, passed: bool, value: 
         StructField("month", IntegerType()),
         StructField("created_at", StringType()),
     ])
-    row = [(RUN_ID, f"gate_{gate_name}", float(value), None, None, datetime.now(timezone.utc).isoformat())]
+    row = [(RUN_ID, f"gate_{gate_name}", float(value), None, None, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))]
     write_to_ch(spark.createDataFrame(row, schema), "pipeline_quality_metrics")
 
 

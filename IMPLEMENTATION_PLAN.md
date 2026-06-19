@@ -1820,3 +1820,9 @@ Target:
 - Optional EC2/S3 deployment.
 - Final demo pipeline end-to-end.
 
+<!-- Untuk ke AWS -->
+docker exec clickhouse clickhouse-client -q "TRUNCATE TABLE flight_delay.ontime_curated; TRUNCATE TABLE flight_delay.ontime_features; TRUNCATE TABLE flight_delay.agg_monthly_delay; TRUNCATE TABLE flight_delay.agg_carrier_performance; TRUNCATE TABLE flight_delay.agg_airport_performance; TRUNCATE TABLE flight_delay.agg_route_performance; TRUNCATE TABLE flight_delay.agg_hourly_delay; TRUNCATE TABLE flight_delay.agg_delay_reason;"
+
+docker exec spark-master spark-submit --driver-memory 2g --executor-memory 3g /opt/spark-apps/preprocess_ontime.py
+
+docker exec spark-master spark-submit --driver-memory 2g --executor-memory 3g /opt/spark-apps/aggregate_ontime.py

@@ -63,7 +63,14 @@ def clean_value(val: str | None) -> str | float | int | None:
     val = val.strip()
     if val == "":
         return None
-    return val
+    
+    try:
+        f = float(val)
+        if f.is_integer():
+            return int(f)
+        return f
+    except ValueError:
+        return val
 
 
 def build_message(row: dict, source_file: str, source_year: int, source_month: int) -> dict:

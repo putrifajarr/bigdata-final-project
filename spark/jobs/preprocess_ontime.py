@@ -41,12 +41,18 @@ CLICKHOUSE_PORT = os.getenv("CLICKHOUSE_HTTP_PORT", "8123")
 CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "flight_delay")
 CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "default")
 CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
-DATA_START_YEAR = int(os.getenv("DATA_START_YEAR", "2021"))
+DATA_START_YEAR = 2024
 DATA_END_YEAR = int(os.getenv("DATA_END_YEAR", "2025"))
 
-CH_URL = f"jdbc:clickhouse://{CLICKHOUSE_HOST}:{CLICKHOUSE_PORT}/{CLICKHOUSE_DB}"
+CH_URL = f"jdbc:clickhouse://{CLICKHOUSE_HOST}:{CLICKHOUSE_PORT}/{CLICKHOUSE_DB}?compress=0"
 CH_DRIVER = "com.clickhouse.jdbc.ClickHouseDriver"
-CH_PROPS = {"driver": CH_DRIVER, "user": CLICKHOUSE_USER, "password": CLICKHOUSE_PASSWORD}
+CH_PROPS = {
+    "driver": CH_DRIVER, 
+    "user": CLICKHOUSE_USER, 
+    "password": CLICKHOUSE_PASSWORD,
+    "socket_timeout": "300000",
+    "socketTimeout": "300000"
+}
 
 RUN_ID = os.getenv("PIPELINE_RUN_ID", str(uuid.uuid4()))
 
@@ -81,12 +87,17 @@ def get_spark() -> SparkSession:
     )
 
 
-def read_raw(spark: SparkSession) -> DataFrame:
+def read_raw(spark: SparkSession, year: int) -> DataFrame:
     return (
         spark.read
         .format("jdbc")
         .option("url", CH_URL)
-        .option("dbtable", f"{CLICKHOUSE_DB}.ontime_raw")
+        .option("dbtable", f"(SELECT * FROM {CLICKHOUSE_DB}.ontime_raw WHERE source_year = {year}) AS tmp")
+        .option("fetchsize", "50000")
+        .option("numPartitions", "4")
+        .option("partitionColumn", "source_month")
+        .option("lowerBound", "1")
+        .option("upperBound", "12")
         .options(**CH_PROPS)
         .load()
     )
@@ -98,6 +109,7 @@ def write_to_ch(df: DataFrame, table: str) -> None:
         .format("jdbc")
         .option("url", CH_URL)
         .option("dbtable", f"{CLICKHOUSE_DB}.{table}")
+        .option("batchsize", "10000")
         .options(**CH_PROPS)
         .mode("append")
         .save()
@@ -112,7 +124,7 @@ def log_status(spark: SparkSession, status: str, message: str = "") -> None:
         StructField("message", StringType()),
         StructField("created_at", StringType()),
     ])
-    row = [(RUN_ID, status, "preprocess_ontime", message, datetime.now(timezone.utc).isoformat())]
+    row = [(RUN_ID, status, "preprocess_ontime", message, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))]
     write_to_ch(spark.createDataFrame(row, schema), "pipeline_run_log")
 
 
@@ -126,7 +138,7 @@ def write_quality_metric(spark: SparkSession, name: str, value: float,
         StructField("month", IntegerType()),
         StructField("created_at", StringType()),
     ])
-    row = [(RUN_ID, name, float(value), year, month, datetime.now(timezone.utc).isoformat())]
+    row = [(RUN_ID, name, float(value), year, month, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))]
     write_to_ch(spark.createDataFrame(row, schema), "pipeline_quality_metrics")
 
 
@@ -233,7 +245,7 @@ def write_rejected_rows(spark: SparkSession, df_invalid: DataFrame) -> int:
         F.col("source_file"),
         F.col("reject_reason"),
         F.to_json(F.struct(*[c for c in df_invalid.columns if c != "reject_reason"])).alias("raw_row"),
-        F.lit(datetime.now(timezone.utc).isoformat()).alias("created_at"),
+        F.lit(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")).alias("created_at"),
     )
     write_to_ch(df_to_write, "pipeline_rejected_rows")
     return df_to_write.count()
@@ -479,7 +491,7 @@ def build_feature_table(df: DataFrame) -> DataFrame:
         .withColumnRenamed("ArrDel15", "arr_del15_label")
         .withColumnRenamed("Cancelled", "cancelled_label")
         .withColumn("pipeline_run_id", F.lit(RUN_ID))
-        .withColumn("created_at", F.lit(datetime.now(timezone.utc).isoformat()).cast("timestamp"))
+        .withColumn("created_at", F.lit(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")).cast("timestamp"))
     )
 
 
@@ -506,85 +518,101 @@ def main() -> None:
 
     log_status(spark, "STARTED", "Preprocessing dimulai")
 
-    df_raw = read_raw(spark)
-    total_raw = df_raw.count()
-    write_quality_metric(spark, "raw_total_rows", float(total_raw))
+    total_valid_all = 0
+    total_rejected_all = 0
+    total_dup_all = 0
 
-    if total_raw == 0:
-        log_status(spark, "FAILED", "ontime_raw kosong")
-        spark.stop()
-        return
+    for year in range(2021, 2026):
+        print(f"\\n{'='*50}\\nMemproses Tahun {year}\\n{'='*50}")
+        df_raw = read_raw(spark, year)
+        total_raw = df_raw.count()
 
-    # Step 1: Casting
-    df_casted = cast_types(df_raw)
+        if total_raw == 0:
+            print(f"Data kosong untuk tahun {year}, melewati...")
+            continue
 
-    # Step 2: Filter dan catat rejected rows
-    df_valid, df_invalid = split_valid_invalid(df_casted)
-    df_invalid.cache()
-    rejected_count = write_rejected_rows(spark, df_invalid)
-    df_invalid.unpersist()
+        write_quality_metric(spark, f"raw_total_rows_{year}", float(total_raw))
 
-    valid_count = df_valid.count()
-    valid_ratio = valid_count / total_raw if total_raw > 0 else 0.0
-    write_quality_metric(spark, "valid_row_count", float(valid_count))
-    write_quality_metric(spark, "rejected_row_count", float(rejected_count))
-    write_quality_metric(spark, "valid_row_ratio", valid_ratio)
+        # Step 1: Casting
+        df_casted = cast_types(df_raw)
 
-    # Step 3: Deduplication
-    df_deduped = deduplicate(df_valid)
-    dup_count = valid_count - df_deduped.count()
-    write_quality_metric(spark, "duplicate_count", float(dup_count))
+        # Step 2: Filter dan catat rejected rows
+        df_valid, df_invalid = split_valid_invalid(df_casted)
+        # df_invalid.cache()
+        rejected_count = write_rejected_rows(spark, df_invalid)
+        # df_invalid.unpersist()
 
-    # Step 4: Standardisasi
-    df_std = standardize_categoricals(df_deduped)
-    df_std = add_cancelled_flags(df_std)
-    df_std.cache()
+        valid_count = df_valid.count()
+        valid_ratio = valid_count / total_raw if total_raw > 0 else 0.0
+        write_quality_metric(spark, f"valid_row_count_{year}", float(valid_count))
+        write_quality_metric(spark, f"rejected_row_count_{year}", float(rejected_count))
+        write_quality_metric(spark, f"valid_row_ratio_{year}", valid_ratio)
 
-    # Hitung outlier caps dari data yang sudah bersih
-    dep_cap, arr_cap = compute_outlier_caps(df_std)
-    write_quality_metric(spark, "dep_delay_cap_p995", dep_cap)
-    write_quality_metric(spark, "arr_delay_cap_p995", arr_cap)
+        # Step 3: Deduplication
+        df_deduped = deduplicate(df_valid)
+        dup_count = valid_count - df_deduped.count()
+        write_quality_metric(spark, f"duplicate_count_{year}", float(dup_count))
 
-    df_std = add_outlier_columns(df_std, dep_cap, arr_cap)
+        total_valid_all += valid_count
+        total_rejected_all += rejected_count
+        total_dup_all += dup_count
 
-    # Step 5: Feature engineering
-    df_featured = build_time_features(df_std)
-    df_featured = build_route_features(df_featured)
-    df_featured = build_historical_features(df_featured)
-    df_featured.cache()
+        if valid_count == 0:
+            print(f"Tidak ada data valid untuk tahun {year}, melewati...")
+            continue
 
-    # Tulis curated table
-    df_curated = (
-        df_featured
-        .select(*[c for c in CURATED_COLS if c in df_featured.columns])
-        .withColumn("pipeline_run_id", F.lit(RUN_ID))
-    )
-    write_to_ch(df_curated, "ontime_curated")
+        # Step 4: Standardisasi
+        df_std = standardize_categoricals(df_deduped)
+        df_std = add_cancelled_flags(df_std)
+        # df_std.cache()
 
-    # Tulis post-event analysis table
-    df_post_event = (
-        df_featured
-        .select(*[c for c in POST_EVENT_COLS if c in df_featured.columns])
-        .withColumn("pipeline_run_id", F.lit(RUN_ID))
-        .withColumn("created_at", F.lit(datetime.now(timezone.utc).isoformat()).cast("timestamp"))
-    )
-    write_to_ch(df_post_event, "ontime_post_event_analysis")
+        # Hitung outlier caps dari data yang sudah bersih
+        dep_cap, arr_cap = compute_outlier_caps(df_std)
+        write_quality_metric(spark, f"dep_delay_cap_p995_{year}", float(dep_cap))
+        write_quality_metric(spark, f"arr_delay_cap_p995_{year}", float(arr_cap))
 
-    # Tulis feature table dan jalankan leakage check
-    df_features = build_feature_table(df_featured)
-    if not leakage_check(df_features):
-        log_status(spark, "FAILED", "Leakage terdeteksi di feature table — pipeline dihentikan")
-        spark.stop()
-        return
+        df_std = add_outlier_columns(df_std, dep_cap, arr_cap)
 
-    write_to_ch(df_features, "ontime_features")
-    write_quality_metric(spark, "feature_row_count", float(df_features.count()))
+        # Step 5: Feature engineering
+        df_featured = build_time_features(df_std)
+        df_featured = build_route_features(df_featured)
+        df_featured = build_historical_features(df_featured)
+        # df_featured.cache()
 
-    df_std.unpersist()
-    df_featured.unpersist()
+        # Tulis curated table
+        df_curated = (
+            df_featured
+            .select(*[c for c in CURATED_COLS if c in df_featured.columns])
+            .withColumn("pipeline_run_id", F.lit(RUN_ID))
+        )
+        write_to_ch(df_curated, "ontime_curated")
+
+        # Tulis post-event analysis table
+        df_post_event = (
+            df_featured
+            .select(*[c for c in POST_EVENT_COLS if c in df_featured.columns])
+            .withColumn("pipeline_run_id", F.lit(RUN_ID))
+            .withColumn("created_at", F.lit(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")).cast("timestamp"))
+        )
+        write_to_ch(df_post_event, "ontime_post_event_analysis")
+
+        # Tulis feature table dan jalankan leakage check
+        df_features = build_feature_table(df_featured)
+        if not leakage_check(df_features):
+            log_status(spark, "FAILED", f"Leakage terdeteksi di feature table tahun {year} - pipeline dihentikan")
+            spark.stop()
+            return
+
+        write_to_ch(df_features, "ontime_features")
+        write_quality_metric(spark, f"feature_row_count_{year}", float(df_features.count()))
+
+        # df_std.unpersist()
+        # df_featured.unpersist()
+        
+        print(f"\\nSelesai memproses tahun {year} | Curated: {valid_count} | Rejected: {rejected_count}\\n")
 
     log_status(spark, "PREPROCESSING_COMPLETED",
-               f"Curated: {valid_count:,} rows | Rejected: {rejected_count} | Dup: {dup_count}")
+               f"Curated: {total_valid_all:,} rows | Rejected: {total_rejected_all} | Dup: {total_dup_all}")
     spark.stop()
 
 

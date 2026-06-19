@@ -12,9 +12,6 @@ Output:
 Cara submit:
     docker exec spark-master spark-submit \
         --master spark://spark-master:7077 \
-        --packages com.clickhouse.spark:clickhouse-spark-runtime-3.5_2.12:0.8.0,\
-com.clickhouse:clickhouse-http-client:0.6.3,\
-org.apache.httpcomponents.client5:httpclient5:5.3 \
         /opt/spark-apps/eda_profile.py
 """
 
@@ -88,7 +85,7 @@ def log_run_status(spark: SparkSession, status: str, message: str = "") -> None:
         StructField("message", StringType()),
         StructField("created_at", StringType()),
     ])
-    row = [(RUN_ID, status, "eda_profile", message, datetime.now(timezone.utc).isoformat())]
+    row = [(RUN_ID, status, "eda_profile", message, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))]
     df = spark.createDataFrame(row, schema)
     write_to_clickhouse(df, "pipeline_run_log")
 
@@ -143,7 +140,7 @@ def build_column_profiles(df: DataFrame, run_id: str) -> DataFrame:
             max_val = None
 
         rows.append((run_id, col_name, col_type, total, null_count, null_ratio, distinct_count, min_val, max_val,
-                     datetime.now(timezone.utc).isoformat()))
+                     datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")))
 
     from pyspark.sql.types import (
         StructType, StructField, StringType, LongType, FloatType
@@ -175,7 +172,7 @@ def build_quality_summary(df: DataFrame, run_id: str) -> DataFrame:
     """
     spark = df.sparkSession
     metrics = []
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
     total = df.count()
     metrics.append((run_id, "total_rows", float(total), None, None, now))
