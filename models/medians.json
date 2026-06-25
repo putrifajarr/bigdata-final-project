@@ -1,0 +1,16 @@
+{
+  "route_avg_arr_delay_prev": 13.791304347826086,
+  "carrier_arr_delay_rate_prev": 0.19906605803032687,
+  "route_arr_delay_rate_prev": 0.19413287316652286,
+  "route_carrier_arr_delay_rate_prev": 0.19006849315068494,
+  "route_cancel_rate_prev": 0.015402843601895734,
+  "origin_arr_delay_rate_prev": 0.19867339378329746,
+  "origin_cancel_rate_prev": 0.016689373297002725,
+  "dest_arr_delay_rate_prev": 0.2010053222945003,
+  "dest_cancel_rate_prev": 0.016702924824752236,
+  "carrier_cancel_rate_prev": 0.017925701762415796,
+  "route_weather_delay_rate_prev": 0.008247422680412371,
+  "origin_weather_delay_rate_prev": 0.00965476887068461,
+  "origin_nas_delay_rate_prev": 0.09545702485778851,
+  "carrier_late_aircraft_rate_prev": 0.0869194306503439
+}

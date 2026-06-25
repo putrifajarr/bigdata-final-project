@@ -1,0 +1,8 @@
+{
+  "model_final_versi": "A_Weighting",
+  "model_final_algo": "gbt_classifier",
+  "model_final_path": "D:\\Pyta\\Sem6\\SBD\\bigdata-final-project\\models\\A_Weighting__gbt_classifier",
+  "label_col": "arr_del15_label",
+  "features_col": "features",
+  "weight_col": "final_weight"
+}
